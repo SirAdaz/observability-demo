@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="${ROOT_DIR}/docker-compose.yml"
-PF_CONTAINER="observability-demo-pf"
+PF_CONTAINER="observability-demo-ui-1"
 CMD="${1:-help}"
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -28,18 +28,19 @@ start_demo() {
   echo "[start] Deploiement du cluster et des workloads..."
   docker compose -f "${COMPOSE_FILE}" run --rm tooling deploy
 
-  docker rm -f "${PF_CONTAINER}" >/dev/null 2>&1 || true
+  docker compose -f "${COMPOSE_FILE}" rm -sf ui >/dev/null 2>&1 || true
   echo "[start] Lancement des interfaces web sur localhost..."
-  docker compose -f "${COMPOSE_FILE}" run -d --name "${PF_CONTAINER}" tooling ui >/dev/null
+  docker compose -f "${COMPOSE_FILE}" up -d ui >/dev/null
 
+  "${ROOT_DIR}/scripts/wait-for-ui.sh" "${PF_CONTAINER}"
   "${ROOT_DIR}/scripts/print-success.sh"
 }
 
 stop_demo() {
-  if docker rm -f "${PF_CONTAINER}" >/dev/null 2>&1; then
+  if docker compose -f "${COMPOSE_FILE}" rm -sf ui >/dev/null 2>&1; then
     echo "Interfaces web arretees."
   else
-    echo "Aucun port-forward actif (${PF_CONTAINER} introuvable)."
+    echo "Aucun port-forward actif (service ui introuvable)."
   fi
 }
 

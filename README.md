@@ -28,9 +28,9 @@ Cette commande :
 5. affiche les liens `localhost` à ouvrir.
 
 Ensuite, ouvre directement :
-- Grafana : http://localhost:3000
-- Prometheus : http://localhost:9090
-- Alertmanager : http://localhost:9093
+- Grafana : http://localhost:13000
+- Prometheus : http://localhost:19090
+- Alertmanager : http://localhost:19093
 - Orders API : http://localhost:18080/orders
 - Métriques : http://localhost:18080/metrics
 
