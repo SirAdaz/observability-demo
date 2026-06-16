@@ -6,7 +6,8 @@ metadata:
     release: monitoring
 spec:
   groups:
-    - name: sample.rules
+
+    - name: sample.always
       rules:
         - alert: SampleAlwaysFiring
           expr: vector(1)
@@ -15,5 +16,137 @@ spec:
             severity: warning
             team: lab
           annotations:
-            summary: "Lab demo alert (always fires)"
+            summary: "Lab: alerte permanente (demo)"
+            description: "Cette alerte est toujours active. Elle sert à valider le pipeline Prometheus → Alertmanager."
             runbook_url: "https://runbooks.example.com/SampleAlwaysFiring"
+
+    # Alertes rotationnelles : utilisent time() % <periode> pour déclencher
+    # à intervalles décalés et donner un effet d'aléatoire.
+    - name: sample.rotating
+      rules:
+        - alert: SampleRotating5min
+          # Actif 90 secondes toutes les 5 minutes
+          expr: (time() % 300) < bool 90
+          for: 0s
+          labels:
+            severity: info
+            team: lab
+          annotations:
+            summary: "Lab: alerte de rotation (toutes les 5 min)"
+            description: "Déclenche pendant 90s toutes les 5 minutes pour simuler une anomalie intermittente."
+
+        - alert: SampleRotating7min
+          # Actif 2 minutes toutes les 7 minutes
+          expr: (time() % 420) < bool 120
+          for: 0s
+          labels:
+            severity: warning
+            team: lab
+          annotations:
+            summary: "Lab: alerte de rotation (toutes les 7 min)"
+            description: "Déclenche pendant 2 minutes toutes les 7 minutes."
+
+        - alert: SampleRotating11min
+          # Actif 3 minutes toutes les 11 minutes
+          expr: (time() % 660) < bool 180
+          for: 0s
+          labels:
+            severity: critical
+            team: lab
+          annotations:
+            summary: "Lab: alerte de rotation (toutes les 11 min)"
+            description: "Déclenche pendant 3 minutes toutes les 11 minutes."
+
+        - alert: SampleRotating13min
+          # Actif 1 minute toutes les 13 minutes
+          expr: (time() % 780) < bool 60
+          for: 0s
+          labels:
+            severity: warning
+            team: lab
+          annotations:
+            summary: "Lab: alerte de rotation (toutes les 13 min)"
+            description: "Déclenche pendant 1 minute toutes les 13 minutes."
+
+    - name: sample.kubernetes
+      rules:
+        - alert: SamplePodRestartLoop
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="orders"}[15m]) > 2
+          for: 1m
+          labels:
+            severity: warning
+            team: ops
+          annotations:
+            summary: "Kubernetes: pod orders redémarre trop souvent"
+            description: "Le pod {{ $labels.pod }} a redémarré {{ $value }} fois en 15 minutes."
+
+        - alert: SampleNodeMemoryPressure
+          expr: |
+            (
+              node_memory_MemAvailable_bytes
+                /
+              node_memory_MemTotal_bytes
+            ) < 0.15
+          for: 2m
+          labels:
+            severity: warning
+            team: infra
+          annotations:
+            summary: "Node: mémoire disponible < 15%"
+            description: "Mémoire restante : {{ $value | humanizePercentage }} sur {{ $labels.instance }}."
+
+        - alert: SampleNodeCPUHigh
+          expr: |
+            100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+          for: 5m
+          labels:
+            severity: warning
+            team: infra
+          annotations:
+            summary: "Node: CPU > 85%"
+            description: "Utilisation CPU : {{ $value | humanize }}% sur {{ $labels.instance }}."
+
+        - alert: SampleDeploymentUnavailable
+          expr: |
+            kube_deployment_status_replicas_unavailable{namespace="orders"} > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: ops
+          annotations:
+            summary: "Kubernetes: réplicas indisponibles dans orders"
+            description: "{{ $value }} réplica(s) indisponible(s) pour {{ $labels.deployment }}."
+
+        - alert: SamplePodNotReady
+          expr: |
+            kube_pod_status_ready{namespace="orders", condition="false"} == 1
+          for: 1m
+          labels:
+            severity: warning
+            team: ops
+          annotations:
+            summary: "Kubernetes: pod orders non prêt"
+            description: "Le pod {{ $labels.pod }} n'est pas en état Ready."
+
+    - name: sample.prometheus
+      rules:
+        - alert: SamplePrometheusTargetDown
+          expr: up == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "Prometheus: cible de scrape down"
+            description: "La cible {{ $labels.job }}/{{ $labels.instance }} est injoignable depuis 2 minutes."
+
+        - alert: SampleHighScrapeDuration
+          expr: scrape_duration_seconds > 5
+          for: 2m
+          labels:
+            severity: info
+            team: sre
+          annotations:
+            summary: "Prometheus: scrape lent (> 5s)"
+            description: "Le scrape de {{ $labels.job }} prend {{ $value | humanizeDuration }}."

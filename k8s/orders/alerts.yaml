@@ -6,16 +6,171 @@ metadata:
     release: monitoring
 spec:
   groups:
-    - name: orders.slo
+
+    - name: orders.errors
       rules:
         - alert: OrdersHighErrorRate
           expr: |
-            sum(rate(http_requests_total{app="orders", status=~"5.."}[5m]))
+            sum(rate(http_requests_total{route=~"list_orders|place_order|get_order|cancel_order", status=~"5.."}[5m]))
               /
-            sum(rate(http_requests_total{app="orders"}[5m])) > 0.03
+            sum(rate(http_requests_total{route=~"list_orders|place_order|get_order|cancel_order"}[5m])) > 0.03
           for: 2m
           labels:
             severity: critical
+            team: backend
           annotations:
-            summary: "orders: error rate > 3% for 2 min"
+            summary: "Orders: taux d'erreur 5xx > 3%"
+            description: "Le taux d'erreur HTTP 5xx dépasse 3% depuis 2 minutes (valeur actuelle : {{ $value | humanizePercentage }})."
             runbook_url: "https://example.com/runbook/orders-high-error-rate"
+
+        - alert: OrdersPaymentErrors
+          expr: |
+            sum(rate(payment_errors_total[5m])) > 0.05
+          for: 1m
+          labels:
+            severity: critical
+            team: payments
+          annotations:
+            summary: "Orders: erreurs de paiement élevées"
+            description: "Plus de 0.05 erreurs/s de paiement détectées sur 1 minute."
+            runbook_url: "https://example.com/runbook/orders-payment-errors"
+
+        - alert: OrdersDatabaseErrors
+          expr: |
+            sum(rate(db_errors_total[5m])) > 0.02
+          for: 1m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: erreurs base de données"
+            description: "Le service orders génère des erreurs DB ({{ $value | humanize }}/s)."
+
+        - alert: Orders404SpikeRoute
+          expr: |
+            sum(rate(http_requests_total{route="get_order", status="404"}[5m])) > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: pic de 404 sur /orders/<id>"
+            description: "Trop de 404 sur la route get_order ({{ $value | humanize }}/s)."
+
+    - name: orders.latency
+      rules:
+        - alert: OrdersHighLatencyP99
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{route="list_orders"}[5m])) by (le)
+            ) > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: latence P99 > 500ms sur GET /orders"
+            description: "Le 99e percentile de latence est {{ $value | humanizeDuration }} (seuil : 500ms)."
+
+        - alert: OrdersHighLatencyP50
+          expr: |
+            histogram_quantile(0.50,
+              sum(rate(http_request_duration_seconds_bucket{route="place_order"}[5m])) by (le)
+            ) > 0.3
+          for: 3m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: latence médiane POST /orders > 300ms"
+            description: "Médiane de latence sur place_order à {{ $value | humanizeDuration }}."
+
+        - alert: OrdersSlowCancellation
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket{route="cancel_order"}[5m])) by (le)
+            ) > 0.2
+          for: 2m
+          labels:
+            severity: info
+            team: backend
+          annotations:
+            summary: "Orders: annulations lentes (P95 > 200ms)"
+            description: "Le P95 des annulations est {{ $value | humanizeDuration }}."
+
+    - name: orders.traffic
+      rules:
+        - alert: OrdersNoTraffic
+          expr: |
+            sum(rate(http_requests_total{route="list_orders"}[5m])) == 0
+          for: 3m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: aucun trafic détecté sur /orders"
+            description: "Aucune requête reçue depuis 3 minutes. L'app est peut-être down ou le service découplé."
+
+        - alert: OrdersHighThroughput
+          expr: |
+            sum(rate(http_requests_total{route="place_order"}[1m])) > 10
+          for: 1m
+          labels:
+            severity: info
+            team: backend
+          annotations:
+            summary: "Orders: débit élevé sur POST /orders"
+            description: "Plus de 10 créations d'ordre/s depuis 1 minute."
+
+    - name: orders.queue
+      rules:
+        - alert: OrdersQueueDepthHigh
+          expr: orders_queue_depth > 30
+          for: 1m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "Orders: file d'attente saturée (> 30)"
+            description: "La profondeur de queue est {{ $value }} ordres en attente."
+
+        - alert: OrdersManyInFlight
+          expr: orders_in_flight > 5
+          for: 30s
+          labels:
+            severity: info
+            team: backend
+          annotations:
+            summary: "Orders: nombreux ordres en cours de traitement"
+            description: "{{ $value }} ordres sont simultanément en cours."
+
+    - name: orders.slo
+      rules:
+        - alert: OrdersSLOBurnRateFast
+          expr: |
+            (
+              sum(rate(http_requests_total{route=~"list_orders|place_order", status=~"5.."}[1h]))
+                /
+              sum(rate(http_requests_total{route=~"list_orders|place_order"}[1h]))
+            ) > 14.4 * 0.03
+          for: 2m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "Orders: burn rate SLO rapide (1h)"
+            description: "Le budget d'erreur se consume 14× plus vite que prévu. {{ $value | humanizePercentage }} d'erreurs."
+            runbook_url: "https://example.com/runbook/orders-slo-burn"
+
+        - alert: OrdersCacheHitRateLow
+          expr: |
+            sum(rate(cache_hits_total[5m]))
+              /
+            (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) < 0.20
+          for: 5m
+          labels:
+            severity: info
+            team: backend
+          annotations:
+            summary: "Orders: taux de cache < 20%"
+            description: "Cache hit rate actuel : {{ $value | humanizePercentage }}."
