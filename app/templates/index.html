@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Orders Observability Lab</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Observability Demo</p>
+        <h1>Console alertes & logs</h1>
+        <p class="subtitle">
+          Declenche des scenarios, observe les metriques et suis les logs en temps reel.
+        </p>
+      </div>
+      <div class="status-pill" id="stream-status">Terminal: connexion...</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel alerts-panel">
+        <div class="panel-header">
+          <h2>Catalogue d'alertes</h2>
+          <button class="btn ghost" id="refresh-alerts" type="button">Rafraichir</button>
+        </div>
+        <div class="alerts-grid" id="alerts-grid"></div>
+      </section>
+
+      <section class="panel terminal-panel">
+        <div class="panel-header">
+          <h2>Terminal logs</h2>
+          <div class="terminal-actions">
+            <button class="btn ghost" id="clear-terminal" type="button">Effacer</button>
+            <button class="btn ghost" id="pause-terminal" type="button">Pause</button>
+          </div>
+        </div>
+        <pre class="terminal" id="terminal" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <template id="alert-card-template">
+      <article class="alert-card">
+        <div class="alert-card-top">
+          <span class="severity"></span>
+          <code class="prom-alert"></code>
+        </div>
+        <h3 class="alert-name"></h3>
+        <p class="alert-description"></p>
+        <p class="alert-hint"></p>
+        <button class="btn primary trigger-btn" type="button">Declencher</button>
+      </article>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

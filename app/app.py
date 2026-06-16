@@ -1,10 +1,11 @@
-import logging
 import os
 import random
 import time
 import uuid
 
-from flask import Flask, Response, jsonify, request
+from alerts import ALERT_SCENARIOS, catalog_payload, trigger_scenario
+from flask import Flask, Response, jsonify, render_template, request
+from log_buffer import format_sse, setup_logging, snapshot, subscribe, unsubscribe
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
@@ -13,9 +14,9 @@ from prometheus_client import (
     Info,
     generate_latest,
 )
-from pythonjsonlogger import jsonlogger
 
 app = Flask(__name__)
+log = setup_logging()
 
 REQ_COUNT = Counter(
     "http_requests_total",
@@ -74,24 +75,26 @@ APP_INFO = Info(
 )
 APP_INFO.info({"version": "lab03", "env": "demo", "region": "eu-west-1"})
 
-handler = logging.StreamHandler()
-handler.setFormatter(
-    jsonlogger.JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-)
-log = logging.getLogger("orders")
-log.addHandler(handler)
-log.setLevel(logging.INFO)
-log.propagate = False
+METRICS = {
+    "REQ_COUNT": REQ_COUNT,
+    "REQ_LATENCY": REQ_LATENCY,
+    "ORDERS_IN_FLIGHT": ORDERS_IN_FLIGHT,
+    "ORDERS_TOTAL": ORDERS_TOTAL,
+    "PAYMENT_ERRORS": PAYMENT_ERRORS,
+    "DB_ERRORS": DB_ERRORS,
+    "QUEUE_DEPTH": QUEUE_DEPTH,
+    "CACHE_HIT": CACHE_HIT,
+    "CACHE_MISS": CACHE_MISS,
+}
 
 
-def _simulate_queue():
-    """Keep queue depth fluctuating to make gauges interesting."""
+def _simulate_queue() -> None:
     depth = max(0, random.gauss(15, 8))
     QUEUE_DEPTH.set(round(depth))
 
 
 @app.before_request
-def _start_timer():
+def _start_timer() -> None:
     request._start = time.perf_counter()
     request.request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
     traceparent = request.headers.get("traceparent", "")
@@ -104,8 +107,11 @@ def _start_timer():
 
 
 @app.after_request
-def _record_metrics(resp):
-    elapsed = time.perf_counter() - request._start
+def _record_metrics(resp: Response) -> Response:
+    if request.endpoint in {"metrics", "stream_logs"}:
+        return resp
+
+    elapsed = time.perf_counter() - getattr(request, "_start", time.perf_counter())
     route = request.endpoint or "unknown"
     status = str(resp.status_code)
 
@@ -115,6 +121,7 @@ def _record_metrics(resp):
     log.info(
         "request_completed",
         extra={
+            "event": "request_completed",
             "method": request.method,
             "route": route,
             "status": resp.status_code,
@@ -127,6 +134,54 @@ def _record_metrics(resp):
     return resp
 
 
+@app.route("/")
+def dashboard() -> str:
+    return render_template("index.html")
+
+
+@app.route("/api/alerts")
+def list_alerts():
+    return jsonify(catalog_payload())
+
+
+@app.route("/api/trigger/<scenario_id>", methods=["POST"])
+def trigger_alert_scenario(scenario_id: str):
+    try:
+        payload = trigger_scenario(scenario_id, METRICS)
+        return jsonify(payload)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 404
+
+
+@app.route("/api/logs")
+def list_logs():
+    return jsonify(snapshot())
+
+
+@app.route("/api/logs/stream")
+def stream_logs():
+    def generate():
+        for entry in snapshot():
+            yield format_sse(entry)
+
+        subscriber = subscribe()
+        try:
+            while True:
+                entry = subscriber.get()
+                yield format_sse(entry)
+        finally:
+            unsubscribe(subscriber)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.route("/orders", methods=["GET"])
 def list_orders():
     if random.random() < 0.3:
@@ -135,7 +190,6 @@ def list_orders():
         CACHE_MISS.inc()
 
     delay = random.uniform(0.01, 0.150)
-    # Occasional slow queries to trigger latency alerts
     if random.random() < 0.08:
         delay = random.uniform(0.4, 1.2)
     time.sleep(delay)
@@ -173,15 +227,17 @@ def place_order():
 
 
 @app.route("/orders/<order_id>", methods=["GET"])
-def get_order(order_id):
+def get_order(order_id: str):
     time.sleep(random.uniform(0.005, 0.05))
     if random.random() < 0.1:
         return jsonify(error="not found"), 404
-    return jsonify(order={"id": order_id, "status": random.choice(["pending", "shipped", "delivered"])})
+    return jsonify(
+        order={"id": order_id, "status": random.choice(["pending", "shipped", "delivered"])}
+    )
 
 
 @app.route("/orders/<order_id>", methods=["DELETE"])
-def cancel_order(order_id):
+def cancel_order(order_id: str):
     time.sleep(random.uniform(0.01, 0.08))
     if random.random() < 0.03:
         DB_ERRORS.labels(operation="delete").inc()

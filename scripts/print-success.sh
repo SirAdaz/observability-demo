@@ -20,6 +20,7 @@ Liens a ouvrir (WSL / navigateur Windows) :
   Prometheus    http://${HOST_IP}:19090
   Alertmanager  http://${HOST_IP}:19093
   Orders API    http://${HOST_IP}:18080/orders
+  Console UI    http://${HOST_IP}:18080/
   Metriques     http://${HOST_IP}:18080/metrics
 
 EOF
@@ -31,6 +32,7 @@ Liens locaux (depuis le terminal WSL uniquement) :
   Prometheus    http://127.0.0.1:19090
   Alertmanager  http://127.0.0.1:19093
   Orders API    http://127.0.0.1:18080/orders
+  Console UI    http://127.0.0.1:18080/
   Metriques     http://127.0.0.1:18080/metrics
 
 Note WSL : si localhost refuse la connexion dans le navigateur,
