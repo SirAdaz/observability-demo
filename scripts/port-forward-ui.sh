@@ -20,7 +20,11 @@ start_forward() {
   local local_port="$3"
   local remote_port="$4"
 
-  kubectl port-forward -n "${namespace}" "svc/${service}" "${local_port}:${remote_port}" &
+  kubectl port-forward \
+    --address 127.0.0.1,0.0.0.0 \
+    -n "${namespace}" \
+    "svc/${service}" \
+    "${local_port}:${remote_port}" &
   PIDS+=("$!")
 }
 
