@@ -36,7 +36,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+              "expr": "sum by (route) (rate(http_requests_total{job=\"orders\"}[5m]))"
             }
           ]
         },
@@ -45,17 +45,15 @@ data:
           "title": "Metrique - ratio erreurs 5xx (Prometheus)",
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
           "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit" }
+          },
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(rate(http_requests_total{app=\"orders\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{app=\"orders\"}[5m]))"
+              "expr": "sum(rate(http_requests_total{job=\"orders\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"orders\"}[5m]))"
             }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percentunit"
-            }
-          }
+          ]
         },
         {
           "type": "logs",
