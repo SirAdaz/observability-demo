@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: orders-slo
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: orders.slo
+      rules:
+        - alert: OrdersHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{app="orders", status=~"5.."}[5m]))
+              /
+            sum(rate(http_requests_total{app="orders"}[5m])) > 0.03
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "orders: error rate > 3% for 2 min"
+            runbook_url: "https://example.com/runbook/orders-high-error-rate"

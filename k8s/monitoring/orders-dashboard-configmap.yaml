@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  orders.json: |
+    {
+      "title": "orders RED",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "timezone": "browser",
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "R - Request rate by route",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "E - Error ratio by route",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\",status=~\"5..\"}[5m])) / sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "D - p99 latency by route",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.99, sum by (le,route) (rate(http_request_duration_seconds_bucket{app=\"orders\"}[5m])))"
+            }
+          ]
+        }
+      ]
+    }

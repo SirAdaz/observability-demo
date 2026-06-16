@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sample-alerts
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: sample.rules
+      rules:
+        - alert: SampleAlwaysFiring
+          expr: vector(1)
+          for: 30s
+          labels:
+            severity: warning
+            team: lab
+          annotations:
+            summary: "Lab demo alert (always fires)"
+            runbook_url: "https://runbooks.example.com/SampleAlwaysFiring"
