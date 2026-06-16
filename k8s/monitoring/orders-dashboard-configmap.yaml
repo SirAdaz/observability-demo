@@ -22,7 +22,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+              "expr": "sum by (route) (rate(http_requests_total{job=\"orders\"}[5m]))"
             }
           ]
         },
@@ -34,7 +34,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\",status=~\"5..\"}[5m])) / sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+              "expr": "sum by (route) (rate(http_requests_total{job=\"orders\",status=~\"5..\"}[5m])) / sum by (route) (rate(http_requests_total{job=\"orders\"}[5m]))"
             }
           ]
         },
@@ -46,7 +46,7 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "histogram_quantile(0.99, sum by (le,route) (rate(http_request_duration_seconds_bucket{app=\"orders\"}[5m])))"
+              "expr": "histogram_quantile(0.99, sum by (le,route) (rate(http_request_duration_seconds_bucket{job=\"orders\"}[5m])))"
             }
           ]
         }
