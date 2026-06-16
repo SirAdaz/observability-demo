@@ -13,7 +13,9 @@ Commands:
   build       Build the tooling image
   setup       Create or reuse the local kind cluster
   demo        Deploy monitoring stack and demo workloads
+  deploy      Alias of demo (used by start)
   verify      Run runtime verification checks
+  ui          Keep port-forwards running for local UIs
   shell       Open an interactive shell with all tools available
   teardown    Delete the kind cluster
 
@@ -29,9 +31,12 @@ run_cmd() {
     setup)
       "${ROOT_DIR}/scripts/setup-kind.sh"
       ;;
-    demo)
+    demo|deploy)
       "${ROOT_DIR}/scripts/setup-kind.sh"
       "${ROOT_DIR}/scripts/run-demo.sh"
+      ;;
+    ui)
+      exec "${ROOT_DIR}/scripts/port-forward-ui.sh"
       ;;
     verify)
       "${ROOT_DIR}/scripts/setup-kind.sh"
