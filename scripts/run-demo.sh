@@ -31,9 +31,9 @@ helm upgrade --install promtail grafana/promtail \
 
 echo "[5/10] Wait monitoring pods"
 kubectl rollout status -n monitoring deploy/monitoring-grafana --timeout=240s
-kubectl rollout status -n monitoring statefulset/loki --timeout=240s || \
-  kubectl rollout status -n monitoring deploy/loki --timeout=240s || true
-kubectl rollout status -n monitoring daemonset/promtail --timeout=240s
+kubectl rollout status -n monitoring statefulset/loki --timeout=300s
+kubectl rollout status -n monitoring daemonset/promtail --timeout=300s || \
+  echo "[warn] Promtail pas encore ready, la collecte de logs peut prendre 1-2 min"
 
 echo "[6/10] Build and load orders image"
 docker build -t orders:lab03 "${ROOT_DIR}/app"

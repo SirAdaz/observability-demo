@@ -3,26 +3,25 @@ config:
     - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
 
   snippets:
-    pipelineStages:
-      - cri: {}
-      - json:
-          expressions:
-            level: levelname
-            message: message
-            event: event
-            route: route
-            status: status
-            service: service
-            request_id: request_id
-            trace_id: trace_id
-      - labels:
-          level:
-          event:
-          route:
-          service:
-
     scrapeConfigs: |
       - job_name: kubernetes-pods
+        pipeline_stages:
+          - cri: {}
+          - json:
+              expressions:
+                level: levelname
+                message: message
+                event: event
+                route: route
+                status: status
+                service: service
+                request_id: request_id
+                trace_id: trace_id
+          - labels:
+              level:
+              event:
+              route:
+              service:
         kubernetes_sd_configs:
           - role: pod
         relabel_configs:
@@ -39,9 +38,15 @@ config:
             target_label: container
           - source_labels: [__meta_kubernetes_pod_label_app]
             target_label: app
-          - action: replace
-            replacement: orders-lab
+          - replacement: orders-lab
             target_label: cluster
+          - action: replace
+            replacement: /var/log/pods/*$1/*.log
+            separator: /
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            target_label: __path__
 
 resources:
   requests:
