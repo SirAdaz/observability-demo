@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orders-logs-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  orders-logs.json: |
+    {
+      "title": "orders Logs (Loki)",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "10s",
+      "timezone": "browser",
+      "tags": ["orders", "loki", "lab07"],
+      "templating": {
+        "list": [
+          {
+            "name": "route",
+            "type": "query",
+            "datasource": { "type": "loki", "uid": "loki" },
+            "query": "label_values({namespace=\"orders\", app=\"orders\"}, route)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          }
+        ]
+      },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Metrique - debit HTTP par route (Prometheus)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route) (rate(http_requests_total{app=\"orders\"}[5m]))"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Metrique - ratio erreurs 5xx (Prometheus)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(rate(http_requests_total{app=\"orders\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{app=\"orders\"}[5m]))"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit"
+            }
+          }
+        },
+        {
+          "type": "logs",
+          "title": "Logs - toutes les requetes orders",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 8 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{namespace=\"orders\", app=\"orders\"} | json | event=\"request_completed\""
+            }
+          ],
+          "options": {
+            "showTime": true,
+            "showLabels": true,
+            "wrapLogMessage": true,
+            "prettifyLogMessage": true,
+            "enableLogDetails": true
+          }
+        },
+        {
+          "type": "logs",
+          "title": "Logs - erreurs et scenarios d'alerte",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 18 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{namespace=\"orders\", app=\"orders\"} | json | levelname=~\"WARNING|ERROR\" or event=\"alert_scenario_triggered\""
+            }
+          ]
+        },
+        {
+          "type": "logs",
+          "title": "Logs - filtre par route (LogQL)",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
+          "datasource": { "type": "loki", "uid": "loki" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "{namespace=\"orders\", app=\"orders\", route=~\"$route\"} | json"
+            }
+          ]
+        }
+      ]
+    }

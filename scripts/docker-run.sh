@@ -51,6 +51,15 @@ case "${CMD}" in
   start)
     start_demo
     ;;
+  redeploy)
+    echo "[redeploy] Rebuild image orders + restart pods + port-forwards..."
+    docker compose -f "${COMPOSE_FILE}" run --rm --entrypoint /bin/bash tooling -c \
+      'docker build -t orders:lab03 /workspace/app && kind load docker-image orders:lab03 --name observability-demo && kubectl rollout restart -n orders deploy/orders && kubectl rollout status -n orders deploy/orders --timeout=120s'
+    docker compose -f "${COMPOSE_FILE}" rm -sf ui >/dev/null 2>&1 || true
+    docker compose -f "${COMPOSE_FILE}" up -d ui >/dev/null
+    "${ROOT_DIR}/scripts/wait-for-ui.sh"
+    "${ROOT_DIR}/scripts/print-success.sh"
+    ;;
   stop)
     stop_demo
     ;;

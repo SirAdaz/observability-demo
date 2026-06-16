@@ -8,11 +8,35 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
+from pythonjsonlogger import jsonlogger
+
 LOG_BUFFER_SIZE = 500
 
 _log_buffer: deque[dict[str, Any]] = deque(maxlen=LOG_BUFFER_SIZE)
 _log_lock = threading.Lock()
 _subscribers: list[queue.Queue[dict[str, Any]]] = []
+
+_EXTRA_FIELDS = (
+    "event",
+    "method",
+    "route",
+    "status",
+    "elapsed_ms",
+    "request_id",
+    "trace_id",
+    "scenario_id",
+    "alert",
+    "errors_generated",
+    "payment_errors_generated",
+    "db_errors_generated",
+    "not_found_generated",
+    "slow_reads_generated",
+    "slow_posts_generated",
+    "queue_depth_set",
+    "in_flight_set",
+    "cache_misses_generated",
+    "orders_created_burst",
+)
 
 
 class RingBufferHandler(logging.Handler):
@@ -24,34 +48,33 @@ class RingBufferHandler(logging.Handler):
                 subscriber.put(entry)
 
 
+class JsonStdoutFormatter(jsonlogger.JsonFormatter):
+    def add_fields(
+        self,
+        log_record: dict[str, Any],
+        record: logging.LogRecord,
+        message_dict: dict[str, Any],
+    ) -> None:
+        super().add_fields(log_record, record, message_dict)
+        log_record["service"] = "orders"
+        log_record["timestamp"] = datetime.fromtimestamp(
+            record.created, tz=timezone.utc
+        ).isoformat()
+        for key in _EXTRA_FIELDS:
+            value = getattr(record, key, None)
+            if value is not None:
+                log_record[key] = value
+
+
 def _record_to_entry(record: logging.LogRecord) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
         "level": record.levelname,
         "message": record.getMessage(),
+        "service": "orders",
     }
 
-    for key in (
-        "event",
-        "method",
-        "route",
-        "status",
-        "elapsed_ms",
-        "request_id",
-        "trace_id",
-        "scenario_id",
-        "alert",
-        "errors_generated",
-        "payment_errors_generated",
-        "db_errors_generated",
-        "not_found_generated",
-        "slow_reads_generated",
-        "slow_posts_generated",
-        "queue_depth_set",
-        "in_flight_set",
-        "cache_misses_generated",
-        "orders_created_burst",
-    ):
+    for key in _EXTRA_FIELDS:
         value = getattr(record, key, None)
         if value is not None:
             payload[key] = value
@@ -67,7 +90,7 @@ def setup_logging() -> logging.Logger:
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        JsonStdoutFormatter("%(timestamp)s %(levelname)s %(name)s %(message)s")
     )
 
     buffer_handler = RingBufferHandler()
