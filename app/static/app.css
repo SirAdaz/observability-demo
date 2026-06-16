@@ -251,7 +251,9 @@ h1 {
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 0.9rem 1rem;
-  max-width: 24rem;
+  max-width: min(36rem, calc(100vw - 2rem));
+  white-space: pre-wrap;
+  line-height: 1.4;
   box-shadow: var(--shadow);
 }
 

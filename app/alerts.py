@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 import time
-import uuid
 from dataclasses import asdict, dataclass
+from typing import Callable
 
 log = logging.getLogger("orders")
+
+BURST_DURATION_SEC = 150
+BURST_INTERVAL_SEC = 5
+
+_active_bursts: set[str] = set()
+_burst_lock = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -132,12 +139,8 @@ def _log_event(level: str, message: str, **fields) -> None:
     getattr(log, level)(message, extra=extra)
 
 
-def trigger_scenario(scenario_id: str, metrics: dict) -> dict:
-    scenario = next((item for item in ALERT_SCENARIOS if item.id == scenario_id), None)
-    if scenario is None:
-        raise ValueError(f"Unknown scenario: {scenario_id}")
-
-    handlers = {
+def _scenario_handlers() -> dict[str, Callable[[dict], dict]]:
+    return {
         "errors": _trigger_errors,
         "payment": _trigger_payment,
         "database": _trigger_database,
@@ -151,7 +154,43 @@ def trigger_scenario(scenario_id: str, metrics: dict) -> dict:
         "slo-burn": _trigger_slo_burn,
     }
 
+
+def _start_sustained_burst(scenario_id: str, metrics: dict) -> bool:
+    handlers = _scenario_handlers()
+
+    with _burst_lock:
+        if scenario_id in _active_bursts:
+            return False
+        _active_bursts.add(scenario_id)
+
+    def worker() -> None:
+        try:
+            deadline = time.time() + BURST_DURATION_SEC
+            while time.time() < deadline:
+                time.sleep(BURST_INTERVAL_SEC)
+                if time.time() >= deadline:
+                    break
+                handlers[scenario_id](metrics)
+        finally:
+            with _burst_lock:
+                _active_bursts.discard(scenario_id)
+
+    threading.Thread(
+        target=worker,
+        name=f"burst-{scenario_id}",
+        daemon=True,
+    ).start()
+    return True
+
+
+def trigger_scenario(scenario_id: str, metrics: dict) -> dict:
+    scenario = next((item for item in ALERT_SCENARIOS if item.id == scenario_id), None)
+    if scenario is None:
+        raise ValueError(f"Unknown scenario: {scenario_id}")
+
+    handlers = _scenario_handlers()
     result = handlers[scenario_id](metrics)
+    sustained = _start_sustained_burst(scenario_id, metrics)
     _log_event(
         "warning",
         "alert_scenario_triggered",
@@ -159,10 +198,26 @@ def trigger_scenario(scenario_id: str, metrics: dict) -> dict:
         alert=scenario.prometheus_alert,
         **result,
     )
+
+    if sustained:
+        message = (
+            f"Scenario « {scenario.name} » lance. "
+            "Terminal: ligne alert_scenario_triggered immediate. "
+            "Grafana (orders RED): courbes dans ~30 s. "
+            f"Alertmanager: attendre 1-2 min (simulation {BURST_DURATION_SEC // 60} min)."
+        )
+    else:
+        message = (
+            f"Scenario « {scenario.name} » deja en cours. "
+            "Attendez la fin de la simulation avant de relancer."
+        )
+
     return {
         "scenario": asdict(scenario),
         "result": result,
-        "message": f"Scenario '{scenario.name}' declenche. Verifie Prometheus/Alertmanager dans 1-2 min.",
+        "sustained_burst": sustained,
+        "burst_duration_sec": BURST_DURATION_SEC,
+        "message": message,
     }
 
 

@@ -16,7 +16,7 @@ function showToast(message) {
   toast.className = "toast";
   toast.textContent = message;
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+  setTimeout(() => toast.remove(), 9000);
 }
 
 function formatLogLine(entry) {
