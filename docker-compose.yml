@@ -25,4 +25,3 @@ services:
       KIND_CLUSTER_NAME: observability-demo
     entrypoint: ["/workspace/scripts/docker-entrypoint.sh"]
     command: ["ui"]
-    restart: unless-stopped
